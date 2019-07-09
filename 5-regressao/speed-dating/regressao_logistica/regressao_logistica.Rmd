@@ -3,14 +3,23 @@ title: "R Notebook"
 output: html_notebook
 ---
 
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+Os dados descrevem 5000 encontros relâmpagos (speed dating, procura no google) de 4 minutos envolvendo 310 jovens americanos. Os dados originais foram coletados por professores da Columbia Business School no experimento descrito [aqui]("https://faculty.chicagobooth.edu/emir.kamenica/documents/genderDifferences.pdf"). Nesta análise estamos usando uma versão com menos atributos que pode ser encontrado [aqui]("https://github.com/diogoflorencio/ciencia-de-dados-1/blob/master/5-regressao/speed-dating/speed-dating2.csv"). Os atributos selecionado são:
 
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+* gender : sexo do participante 1, 0 = mulher e 1 = homem
+* diff_agr : diferença de idade entre participante 1 e o participante 2
+* attr : quão atraente o participante 1 achou o participante 2
+* fun : quão divertido o participante 1 achou o participante 2
+
+Os participantes tinham vários encontros de 4 minutos por noite. Após cada um, preenchiam fichas avaliando aqueles com quem se encontraram. Cada linha nos dados representa um desses encontros.
+
+Nesta análise vamos utilizar regressão logística em um conjunto nestas 4 variáveis explicativas para responder quais fatores nos dados têm efeito relevante na chance do casal ter um match? 
 
 ```{r message=FALSE, warning=FALSE}
-library(dplyr)
+library(tidyverse)
+library(tidyr)
 library(stargazer)
 library(caret)
+library(GGally)
 
 speed_dating = read_csv("dados/speed-dating2.csv") %>% 
   select(dec, gender, age, age_o, fun, attr, fun) %>% 
@@ -18,23 +27,40 @@ speed_dating = read_csv("dados/speed-dating2.csv") %>%
          dec = case_when( .$dec == "no" ~ 0,
                           .$dec == "yes" ~ 1)) %>% 
   select(-age, -age_o)
-
-summary(speed_dating)
 ```
 
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+```{r}
+regEq <- function(lmObj, dig) {
+    paste0("dec = ",
+        paste0(
+            c(round(lmObj$coef[1], dig), round(sign(lmObj$coef[-1])*lmObj$coef[-1], dig)),
+            c("", rep("*", length(lmObj$coef)-1)),
+            paste0(c("", names(lmObj$coef)[-1]), c(ifelse(sign(lmObj$coef)[-1]==1," + "," - "), "")),
+            collapse=""
+        )
+    )
+}
+```
 
-When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
-
-The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+Vamos explorar os dados...
 
 ```{r message=FALSE, warning=FALSE}
 ggpairs(speed_dating)
 ```
 
+Percebemos que existe correlação entre algumas variáveis. Vamos criar o modelo!
 
 ```{r}
 logit <- glm(dec ~ gender + fun + attr + diff_age, data = speed_dating, family = "binomial")
 summary(logit)
+regEq(logit)
+```
+
+Utilizamos Regressão Logisticaa para analisar se as variáveis `gender`, `fun`, `attr` e `diff_age` tem uma associação na `chance do casal ter um match`. Os resultados da regressão indicam que um modelo no formato `chance do casal ter um match` = -6 + 0 * `gender` + 0 * `fun` + 0.55 * `attr` - 0 * `diff_age` apresenta AIC: 4881.2. A `chance do casal ter um match` tem relação com `attr` de (b = [0.50361597; 0.60356618], IC com 95%). O aumento de 1 unidade na variável `attr` produz uma mudança de 1/2 unidade na `chance do casal ter um match`.
+
+```{r}
+library(broom)
+tidy(logit, conf.int = TRUE, conf.level = 0.95)
+glance(logit)
 ```
 
